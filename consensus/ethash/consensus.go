@@ -304,6 +304,10 @@ var (
 	expDiffPeriod = big.NewInt(100000)
 	big1          = big.NewInt(1)
 	big2          = big.NewInt(2)
+	// keep blocktime in 5-9 seconds range for private networks
+	// rationale: decreased blocktime helps draining the txpool faster when submitting
+	// thousands of transactions to a single node (likely scenario in a private network).
+	big5 					= big.NewInt(5)
 	big9          = big.NewInt(9)
 	big10         = big.NewInt(10)
 	bigMinus99    = big.NewInt(-99)
@@ -386,24 +390,27 @@ func calcDifficultyHomestead(time uint64, parent *types.Header) *big.Int {
 	x := new(big.Int)
 	y := new(big.Int)
 
-	// 1 - (block_timestamp - parent_timestamp) // 10
+	// 1 - (block_timestamp - parent_timestamp) // 5
 	x.Sub(bigTime, bigParentTime)
-	x.Div(x, big10)
+	x.Div(x, big5) // decreased block time
 	x.Sub(big1, x)
 
-	// max(1 - (block_timestamp - parent_timestamp) // 10, -99)
+	// max(1 - (block_timestamp - parent_timestamp) // 5, -99)
 	if x.Cmp(bigMinus99) < 0 {
 		x.Set(bigMinus99)
 	}
-	// (parent_diff + parent_diff // 2048 * max(1 - (block_timestamp - parent_timestamp) // 10, -99))
+	// (parent_diff + parent_diff // 2048 * max(1 - (block_timestamp - parent_timestamp) // 5, -99))
 	y.Div(parent.Difficulty, params.DifficultyBoundDivisor)
 	x.Mul(y, x)
 	x.Add(parent.Difficulty, x)
 
-	// minimum difficulty can ever be (before exponential factor)
+	// minimum difficulty can ever be
 	if x.Cmp(params.MinimumDifficulty) < 0 {
 		x.Set(params.MinimumDifficulty)
 	}
+
+	/* get rid of "the difficulty bomb"
+
 	// for the exponential factor
 	periodCount := new(big.Int).Add(parent.Number, big1)
 	periodCount.Div(periodCount, expDiffPeriod)
@@ -415,6 +422,7 @@ func calcDifficultyHomestead(time uint64, parent *types.Header) *big.Int {
 		y.Exp(big2, y, nil)
 		x.Add(x, y)
 	}
+	*/
 	return x
 }
 
